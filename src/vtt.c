@@ -160,6 +160,10 @@ void parse_timestamps(const utf8_char_t* line, double* start_pts, double* end_pt
     char end_str[32];
     char cue_str[1024];
 
+    memset(start_str, 0, sizeof(start_str));
+    memset(end_str, 0, sizeof(end_str));
+    memset(cue_str, 0, sizeof(cue_str));
+
     int matches = sscanf(line, " %31s --> %31s%1023[^\n\r]", start_str, end_str, cue_str);
     *start_pts = -1;
     *cue_settings = NULL;
@@ -173,11 +177,12 @@ void parse_timestamps(const utf8_char_t* line, double* start_pts, double* end_pt
     if (matches >= 2) {
         *end_pts = parse_timestamp(end_str);
     }
-    if ((matches == 3) && (strlen(cue_str) > 0)) {
-        int cue_size = strlen(cue_str);
-        *cue_settings = malloc(cue_size + 1);
-        strncpy(*cue_settings, cue_str, cue_size);
-        (*cue_settings)[cue_size] = '\0';
+    if (matches == 3) {
+        size_t cue_size = strnlen(cue_str, sizeof(cue_str));
+        if (cue_size > 0) {
+            *cue_settings = malloc(cue_size + 1);
+            strncpy(*cue_settings, cue_str, cue_size + 1);
+        }
     }
 }
 
