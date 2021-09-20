@@ -29,7 +29,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <io.h>
+#include <WinSock2.h>
+#else
+#include <sys/select.h>
 #include <unistd.h>
+#endif
 
 #define MAX_SRT_SIZE (1 * 1024 * 1024)
 
@@ -41,7 +47,7 @@ size_t fd_read(int fd, uint8_t* data, size_t size, int* eof)
 {
     fd_set rfds;
     struct timeval tv;
-    int retval;
+    size_t retval;
 
     (*eof) = 0;
     FD_ZERO(&rfds);
@@ -59,7 +65,11 @@ size_t fd_read(int fd, uint8_t* data, size_t size, int* eof)
         return 0;
     }
 
+#ifdef _WIN32
+    retval = _read(fd, data, (unsigned int)(size));
+#else
     retval = read(fd, data, size);
+#endif
 
     if (0 == retval) {
         (*eof) = 1;
@@ -76,7 +86,7 @@ srt_t* srt_from_fd(int fd)
     uint8_t c;
 
     for (;;) {
-        int ret = fd_read(fd, &c, 1, &eof);
+        size_t ret = fd_read(fd, &c, 1, &eof);
 
         if (eof || (1 == ret && 0 == c)) {
             srt_t* srt = srt_parse(&g_srt_data[0], g_srt_size);
@@ -105,8 +115,18 @@ int main(int argc, char** argv)
     srt_cue_t* next_cue = NULL;
     double timestamp, offset = 0, clear_timestamp = 0;
     int has_audio, has_video;
+
+    if (argc != 4) {
+        fprintf(stderr, "Usage: %s <input_flv> <input_srt> <output_flv>\n", argv[0]);
+        return 1;
+    }
+
     FILE* flv = flv_open_read(argv[1]);
+#ifdef _WIN32
+    int fd = _open(argv[2], O_RDWR);
+#else
     int fd = open(argv[2], O_RDWR);
+#endif
     FILE* out = flv_open_write(argv[3]);
 
     flvtag_init(&tag);

@@ -22,6 +22,9 @@ install(TARGETS scc2srt DESTINATION bin)
 
 add_executable(flv+srt flv+srt.c flv.c)
 target_link_libraries(flv+srt caption)
+if(WIN32)
+  target_link_libraries(flv+srt wsock32 ws2_32)
+endif()
 install(TARGETS flv+srt DESTINATION bin)
 
 add_executable(flv+scc flv+scc.c flv.c)
