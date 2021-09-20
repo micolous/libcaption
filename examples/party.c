@@ -30,10 +30,14 @@
 #define CAPTION_METHOD_SEI_708 0 // embedded 708
 #define CAPTION_METHOD_AMF_708 1 // onCaptionInfo type = 708
 #define CAPTION_METHOD_AMF_UTF8 2 // onCaptionInfo type = utf8
+#ifndef CAPTION_METHOD
 #define CAPTION_METHOD CAPTION_METHOD_SEI_708
+#endif
 
-void get_dudes(char* str)
+void get_dudes(char* str, uint32_t nextParty)
 {
+    sprintf(str, ">> ITS PARTY TIME\r\n#%" PRIu32 "! :D\r\nLine 3\r\nLine 4\r\n", nextParty);
+    /*
     sprintf(str, " %s%s %s(-_-)%s %s(-_-)%s %s(-_-)%s %s%s", EIA608_CHAR_EIGHTH_NOTE, EIA608_CHAR_EIGHTH_NOTE,
         !(rand() % 2) ? EIA608_CHAR_BOX_DRAWINGS_LIGHT_DOWN_AND_RIGHT : EIA608_CHAR_BOX_DRAWINGS_LIGHT_UP_AND_RIGHT,
         !(rand() % 2) ? EIA608_CHAR_BOX_DRAWINGS_LIGHT_DOWN_AND_LEFT : EIA608_CHAR_BOX_DRAWINGS_LIGHT_UP_AND_LEFT,
@@ -41,7 +45,7 @@ void get_dudes(char* str)
         !(rand() % 2) ? EIA608_CHAR_BOX_DRAWINGS_LIGHT_DOWN_AND_LEFT : EIA608_CHAR_BOX_DRAWINGS_LIGHT_UP_AND_LEFT,
         !(rand() % 2) ? EIA608_CHAR_BOX_DRAWINGS_LIGHT_DOWN_AND_RIGHT : EIA608_CHAR_BOX_DRAWINGS_LIGHT_UP_AND_RIGHT,
         !(rand() % 2) ? EIA608_CHAR_BOX_DRAWINGS_LIGHT_DOWN_AND_LEFT : EIA608_CHAR_BOX_DRAWINGS_LIGHT_UP_AND_LEFT,
-        EIA608_CHAR_EIGHTH_NOTE, EIA608_CHAR_EIGHTH_NOTE);
+        EIA608_CHAR_EIGHTH_NOTE, EIA608_CHAR_EIGHTH_NOTE); */
 }
 
 void write_amfcaptions_708(FILE* out, uint32_t timestamp, const char* text)
@@ -95,13 +99,13 @@ int main(int argc, char** argv)
     while (flv_read_tag(flv, &tag)) {
 
         if (flvtag_avcpackettype_nalu == flvtag_avcpackettype(&tag) && nextParty <= flvtag_timestamp(&tag)) {
-            get_dudes(partyDudes);
+            get_dudes(partyDudes, nextParty);
 
             if (CAPTION_METHOD == CAPTION_METHOD_SEI_708) {
                 flvtag_addcaption_text(&tag, partyDudes);
             } else if (CAPTION_METHOD == CAPTION_METHOD_AMF_708) {
                 write_amfcaptions_708(out, nextParty, partyDudes);
-            } else if (CAPTION_METHOD == CAPTION_METHOD_AMF_708) {
+            } else if (CAPTION_METHOD == CAPTION_METHOD_AMF_UTF8) {
                 write_amfcaptions_utf8(out, nextParty, partyDudes);
             } else {
                 fprintf(stderr, "Unknnow method\n");
