@@ -153,9 +153,70 @@ libcaption_stauts_t cea708_parse_h262(const uint8_t* data, size_t size, cea708_t
     return LIBCAPTION_OK;
 }
 
+libcaption_stauts_t cmdlist_push(cc_data_cmdlist_t* cmdlist, int valid, cea708_cc_type_t type, uint16_t cc_data) {
+    if (cmdlist == NULL || cmdlist->length >= MAX_CC_CMDLIST_SIZE) {
+        return LIBCAPTION_ERROR;
+    }
+
+    uint16_t i = cmdlist->length;
+    cmdlist->length++;
+
+    cmdlist->commands[i].marker_bits = 0x1f;
+    cmdlist->commands[i].cc_valid = valid;
+    cmdlist->commands[i].cc_type = type;
+    cmdlist->commands[i].cc_data = cc_data;
+
+    return LIBCAPTION_OK;
+}
+
+libcaption_stauts_t cea708_add_from_cmdlist(cea708_t* cea708, cc_data_cmdlist_t* cmdlist, uint16_t* pos) {
+    if (cea708 == NULL || cmdlist == NULL || pos == NULL) {
+        return LIBCAPTION_ERROR;
+    }
+
+    if (cea708->user_data.cc_count >= 30) {
+        // Out of space
+        return LIBCAPTION_ERROR;
+    }
+
+    if (*pos >= cmdlist->length) {
+        // Nothing to do
+        return LIBCAPTION_ERROR;
+    }
+
+    memcpy(&cea708->user_data.cc_data[cea708->user_data.cc_count],
+           &cmdlist->commands[*pos], sizeof(cc_data_t));
+    
+    cea708->user_data.cc_count++;
+    (*pos)++;
+    return LIBCAPTION_OK;
+}
+
+libcaption_stauts_t cea708_add_all_from_cmdlist(cea708_t* cea708, cc_data_cmdlist_t* cmdlist, uint16_t* pos) {
+    libcaption_stauts_t e;
+    uint16_t p = 0;
+
+    if (cea708 == NULL || cmdlist == NULL) {
+        return LIBCAPTION_ERROR;
+    }
+
+    if (pos == NULL) {
+        pos = &p;
+    }
+
+    while (*pos < cmdlist->length) {
+        e = cea708_add_from_cmdlist(cea708, cmdlist, pos);
+        if (e != LIBCAPTION_OK) {
+            return e;
+        }
+    }
+
+    return LIBCAPTION_OK;
+}
+
 int cea708_add_cc_data(cea708_t* cea708, int valid, cea708_cc_type_t type, uint16_t cc_data)
 {
-    if (31 <= cea708->user_data.cc_count) {
+    if (30 <= cea708->user_data.cc_count) {
         return 0;
     }
 
@@ -167,9 +228,11 @@ int cea708_add_cc_data(cea708_t* cea708, int valid, cea708_cc_type_t type, uint1
     return 1;
 }
 
+const cc_data_t filler_data = { 0x1F, 0, 0, 0 };
+
 int cea708_render(cea708_t* cea708, uint8_t* data, size_t size)
 {
-    int i;
+    uint8_t i;
     size_t total = 0;
     data[0] = cea708->country;
     data[1] = cea708->provider >> 8;
@@ -203,20 +266,38 @@ int cea708_render(cea708_t* cea708, uint8_t* data, size_t size)
         size -= 1;
     }
 
+    // Make sure we have at least 5 blocks, and a multiple of
+    // 5 blocks.
+    uint8_t fake_count = (
+        cea708->user_data.cc_count == 0 ? 5 :
+        cea708->user_data.cc_count % 5 == 0 ? 0 :
+        5 - (cea708->user_data.cc_count % 5)
+    );
+
     data[1] = cea708->user_data.em_data;
     data[0] = (cea708->user_data.process_em_data_flag ? 0x80 : 0x00)
         | (cea708->user_data.process_cc_data_flag ? 0x40 : 0x00)
         | (cea708->user_data.additional_data_flag ? 0x20 : 0x00)
-        | (cea708->user_data.cc_count & 0x1F);
+        | ((cea708->user_data.cc_count + fake_count) & 0x1F);
 
     total += 2;
     data += 2;
     size -= 2;
 
-    for (i = 0; i < (int)cea708->user_data.cc_count; ++i) {
+    for (i = 0; i < cea708->user_data.cc_count; ++i) {
         data[0] = (cea708->user_data.cc_data[i].marker_bits << 3) | (cea708->user_data.cc_data[i].cc_valid << 2) | cea708->user_data.cc_data[i].cc_type;
         data[1] = cea708->user_data.cc_data[i].cc_data >> 8;
         data[2] = cea708->user_data.cc_data[i].cc_data >> 0;
+        total += 3;
+        data += 3;
+        size -= 3;
+    }
+
+    // Insert filler
+    for (i = 0; i < fake_count; i++) {        
+        data[0] = (filler_data.marker_bits << 3) | (filler_data.cc_valid << 2) | filler_data.cc_type;
+        data[1] = filler_data.cc_data >> 8;
+        data[2] = filler_data.cc_data >> 0;
         total += 3;
         data += 3;
         size -= 3;

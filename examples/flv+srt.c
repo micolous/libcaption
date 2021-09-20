@@ -113,8 +113,11 @@ int main(int argc, char** argv)
     flvtag_t tag;
     srt_t* old_srt = NULL;
     srt_cue_t* next_cue = NULL;
-    double timestamp, offset = 0, clear_timestamp = 0;
+    cc_data_cmdlist_t next_cmdlist, clearlist;
+    uint16_t next_cmdlist_pos = 0;
+    double timestamp, latest_time = 0, offset = 0, clear_timestamp = 0;
     int has_audio, has_video;
+    uint8_t did_something = 0;
 
     if (argc != 4) {
         fprintf(stderr, "Usage: %s <input_flv> <input_srt> <output_flv>\n", argv[0]);
@@ -130,6 +133,8 @@ int main(int argc, char** argv)
     FILE* out = flv_open_write(argv[3]);
 
     flvtag_init(&tag);
+    memset(&next_cmdlist, 0, sizeof(cc_data_cmdlist_t));
+    cmdlist_for_text(&clearlist, NULL);
 
     if (!flv_read_header(flv, &has_audio, &has_video)) {
         fprintf(stderr, "%s is not an flv file\n", argv[1]);
@@ -156,18 +161,57 @@ int main(int argc, char** argv)
             offset = timestamp;
             clear_timestamp = timestamp;
             next_cue = cur_srt->cue_head;
+            next_cmdlist_pos = 0;
+            cmdlist_for_text(&next_cmdlist, srt_cue_data(next_cue));
         }
 
-        if (flvtag_avcpackettype_nalu == flvtag_avcpackettype(&tag)) {
-            if (next_cue && (offset + next_cue->timestamp) <= timestamp) {
-                fprintf(stderr, "T: %0.02f (%0.02fs):\n%s\n", (offset + next_cue->timestamp), next_cue->duration, srt_cue_data(next_cue));
-                clear_timestamp = (offset + next_cue->timestamp) + next_cue->duration;
-                flvtag_addcaption_text(&tag, srt_cue_data(next_cue));
-                next_cue = next_cue->next;
-            } else if (0 <= clear_timestamp && clear_timestamp <= timestamp) {
-                fprintf(stderr, "T: %0.02f: [CAPTIONS CLEARED]\n", timestamp);
-                flvtag_addcaption_text(&tag, NULL);
-                clear_timestamp = -1;
+        if (flvtag_avcpackettype_nalu == flvtag_avcpackettype(&tag) && flvtag_type_video == flvtag_type(&tag)) {
+            did_something = 0;
+
+            // We really don't want time going backward on us.
+            if (timestamp > latest_time) {
+                latest_time = timestamp;
+
+                // fprintf(stderr, "T: %0.02f, frame type = %d\n", timestamp, flvtag_frametype(&tag));
+                if (clear_timestamp >= 0 && timestamp >= clear_timestamp) {
+                    // TODO: clear this nicer
+                    fprintf(stderr, "T: %0.02f: [CAPTIONS CLEARED]\n", timestamp);
+                    uint16_t p = 0;
+                    sei_for_remaining_commands(&tag, &clearlist, &p);
+                    did_something = 1;
+                    clear_timestamp = -1;
+                } else if (next_cue) {
+                    // There is a pending cue, try to push that out.
+                    if ((offset + next_cue->timestamp) <= timestamp) {
+                        // We're at or past our cue time.
+                        // fprintf(stderr, "Buffer state: %" PRIu16 " of %" PRIu16 "\n", next_cmdlist_pos, next_cmdlist.length);
+                        fprintf(stderr, "T: %0.02f: Cue %0.02f (%0.02fs):\n%s\n", timestamp, (offset + next_cue->timestamp), next_cue->duration, srt_cue_data(next_cue));
+                        clear_timestamp = (offset + next_cue->timestamp) + next_cue->duration;
+
+                        // Push out whatever we have left, it's cue time!
+                        sei_for_remaining_commands(&tag, &next_cmdlist, &next_cmdlist_pos);
+                        did_something = 1;
+
+                        // Set up for next cue
+                        next_cue = next_cue->next;
+                        next_cmdlist_pos = 0;
+                        if (next_cue) {
+                            cmdlist_for_text(&next_cmdlist, srt_cue_data(next_cue));
+                        }
+                    } else if (next_cmdlist_pos < next_cmdlist.length - 1) {
+                        // We're not yet at the next cue time, buffer up the next thing.
+                        // fprintf(stderr, "T: %0.02f: Buffering next caption for %0.02f: %" PRIu16 " of %" PRIu16 "\n", timestamp, (offset + next_cue->timestamp), next_cmdlist_pos, next_cmdlist.length);
+                        // There is more than 1 command left to insert (last is EOC)
+                        sei_for_one_command(&tag, &next_cmdlist, &next_cmdlist_pos);
+                        did_something = 1;
+                    }
+                }
+            }
+
+            if (!did_something) {
+                // Fill in blanks
+                sei_for_remaining_commands(&tag, NULL, NULL);
+                did_something = 1;
             }
         }
 

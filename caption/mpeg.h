@@ -206,6 +206,12 @@ libcaption_stauts_t sei_from_caption_clear(sei_t* sei);
 */
 libcaption_stauts_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame);
 ////////////////////////////////////////////////////////////////////////////////
+
+void sei_append_708(sei_t* sei, cea708_t* cea708);
+libcaption_stauts_t commands_for_frame(cc_data_cmdlist_t* cmdlist, caption_frame_t* frame);
+libcaption_stauts_t cmdlist_from_caption_clear(cc_data_cmdlist_t* cmdlist);
+libcaption_stauts_t cmdlist_from_caption_fullreset(cc_data_cmdlist_t* cmdlist);
+
 #ifdef __cplusplus
 }
 #endif

@@ -110,7 +110,9 @@ static inline vtt_block_t* vtt_cue_next(vtt_block_t* block) { return block->next
 /*! \brief
     \param
 */
-static inline utf8_char_t* vtt_block_data(vtt_block_t* block) { return (utf8_char_t*)(block) + sizeof(vtt_block_t); }
+static inline utf8_char_t* vtt_block_data(vtt_block_t* block) {
+    return (utf8_char_t*)(block) + sizeof(vtt_block_t);
+}
 
 /*! \brief
     \param

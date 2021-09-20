@@ -118,6 +118,19 @@ int cea708_render(cea708_t* cea708, uint8_t* data, size_t size);
     \param
 */
 void cea708_dump(cea708_t* cea708);
+
+// TODO: determine if this is reasonable
+#define MAX_CC_CMDLIST_SIZE SCREEN_ROWS * SCREEN_COLS * 2 + 5
+typedef struct {
+    uint16_t length;
+
+    cc_data_t commands[MAX_CC_CMDLIST_SIZE];
+} cc_data_cmdlist_t;
+
+libcaption_stauts_t cmdlist_push(cc_data_cmdlist_t* cmdlist, int valid, cea708_cc_type_t type, uint16_t cc_data);
+libcaption_stauts_t cea708_add_from_cmdlist(cea708_t* cea708, cc_data_cmdlist_t* cmdlist, uint16_t* pos);
+libcaption_stauts_t cea708_add_all_from_cmdlist(cea708_t* cea708, cc_data_cmdlist_t* cmdlist, uint16_t* pos);
+
 #ifdef __cplusplus
 }
 #endif

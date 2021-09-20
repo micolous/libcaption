@@ -402,6 +402,61 @@ int flvtag_addcaption_text(flvtag_t* tag, const utf8_char_t* text)
     return ret;
 }
 
+void cmdlist_for_text(cc_data_cmdlist_t* cmdlist, const utf8_char_t* text) {
+    if (cmdlist == NULL) {
+        return;
+    }
+
+    if (text) {
+        caption_frame_t frame;
+        caption_frame_init(&frame);
+        caption_frame_from_text(&frame, text);
+        commands_for_frame(cmdlist, &frame);
+    } else {
+        cmdlist_from_caption_clear(cmdlist);
+    }
+}
+
+int sei_for_one_command(flvtag_t* tag, cc_data_cmdlist_t* cmdlist, uint16_t* pos) {
+    sei_t sei;
+    cea708_t cea708;
+
+    if (tag == NULL || cmdlist == NULL || pos == NULL) {
+        return 0;
+    }
+
+    sei_init(&sei, flvtag_pts(tag));
+    cea708_init(&cea708, sei.timestamp);
+    cea708_add_from_cmdlist(&cea708, cmdlist, pos);
+    cea708_add_from_cmdlist(&cea708, cmdlist, pos);
+    sei_append_708(&sei, &cea708);
+
+
+    int ret = flvtag_addsei(tag, &sei);
+    sei_free(&sei);
+    return ret;
+}
+
+int sei_for_remaining_commands(flvtag_t* tag, cc_data_cmdlist_t* cmdlist, uint16_t* pos) {
+    sei_t sei;
+    cea708_t cea708;
+
+    if (tag == NULL) {
+        return 0;
+    }
+
+    sei_init(&sei, flvtag_pts(tag));
+    cea708_init(&cea708, sei.timestamp);
+    if (cmdlist != NULL) {
+        cea708_add_all_from_cmdlist(&cea708, cmdlist, pos);
+    }
+    sei_append_708(&sei, &cea708);
+    
+    int ret = flvtag_addsei(tag, &sei);
+    sei_free(&sei);
+    return ret;
+}
+
 int flvtag_addcaption_scc(flvtag_t* tag, const scc_t* scc)
 {
     sei_t sei;
