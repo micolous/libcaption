@@ -38,6 +38,9 @@ vtt_t* vtt_new()
 
 void vtt_free(vtt_t* vtt)
 {
+    if (vtt == NULL) {
+        return;
+    }
     while (vtt->region_head != NULL) {
         vtt->region_head = vtt_block_free_head(vtt->region_head);
     }
