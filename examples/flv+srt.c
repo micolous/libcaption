@@ -108,6 +108,57 @@ srt_t* srt_from_fd(int fd)
     }
 }
 
+int should_do_things(timecode_ring_t* ring, double new_ts) {
+    double oldest = timecode_ring_oldest(ring);
+    double newest = timecode_ring_newest(ring);
+    double rate = timecode_ring_rate(ring);
+
+    if (oldest < 0 || newest < 0) {
+        // Nothing in the ring, do something!
+        goto something;
+    }
+
+    if (oldest > new_ts) {
+        // Older than the oldest thing we have, do nothing
+        goto nothing;
+    }
+
+    if (rate < 0) {
+        // No rate signal
+        if (new_ts > newest) {
+            goto something;
+        } else {
+            goto nothing;
+        }
+    }
+
+    // There's a rate signal, see if we're < 110% of that.
+    if (newest < new_ts) {
+        if (newest + (rate * 1.1) > new_ts) {
+            goto something;
+        } else {
+            // we're more than 110% of newest at normal rate.
+            // Probably skewing.
+            goto nothing;
+        }
+    }
+
+    // We're somewhere between oldest and newest. Is that window a good size for us?
+    if (newest - rate < new_ts) {
+        // Lets try waiting for a better window
+        goto nothing;
+    }
+
+    // Do something I guess?
+something:
+    timecode_ring_push(ring, new_ts);
+    return 1;
+
+nothing:
+    timecode_ring_push(ring, new_ts);
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     flvtag_t tag;
@@ -118,6 +169,7 @@ int main(int argc, char** argv)
     double timestamp, latest_time = 0, offset = 0, clear_timestamp = 0;
     int has_audio, has_video;
     uint8_t did_something = 0;
+    timecode_ring_t ring;
 
     if (argc != 4) {
         fprintf(stderr, "Usage: %s <input_flv> <input_srt> <output_flv>\n", argv[0]);
@@ -135,6 +187,7 @@ int main(int argc, char** argv)
     flvtag_init(&tag);
     memset(&next_cmdlist, 0, sizeof(cc_data_cmdlist_t));
     cmdlist_for_text(&clearlist, NULL);
+    timecode_ring_init(&ring);
 
     if (!flv_read_header(flv, &has_audio, &has_video)) {
         fprintf(stderr, "%s is not an flv file\n", argv[1]);
@@ -169,7 +222,7 @@ int main(int argc, char** argv)
             did_something = 0;
 
             // We really don't want time going backward on us.
-            if (timestamp > latest_time) {
+            if (should_do_things(&ring, timestamp) && timestamp > latest_time) {
                 latest_time = timestamp;
 
                 // fprintf(stderr, "T: %0.02f, frame type = %d\n", timestamp, flvtag_frametype(&tag));
@@ -202,7 +255,8 @@ int main(int argc, char** argv)
                         // We're not yet at the next cue time, buffer up the next thing.
                         // fprintf(stderr, "T: %0.02f: Buffering next caption for %0.02f: %" PRIu16 " of %" PRIu16 "\n", timestamp, (offset + next_cue->timestamp), next_cmdlist_pos, next_cmdlist.length);
                         // There is more than 1 command left to insert (last is EOC)
-                        sei_for_one_command(&tag, &next_cmdlist, &next_cmdlist_pos);
+
+                        sei_for_n_commands(&tag, &next_cmdlist, &next_cmdlist_pos, /* next_cmdlist_pos < next_cmdlist.length - 2 ? 2 : */ 1);
                         did_something = 1;
                     }
                 }

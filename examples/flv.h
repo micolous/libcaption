@@ -144,7 +144,18 @@ int flvtag_amfcaption_utf8(flvtag_t* tag, uint32_t timestamp, const utf8_char_t*
 // Prepare an command list for later writing
 void cmdlist_for_text(cc_data_cmdlist_t* cmdlist, const utf8_char_t* text);
 
-int sei_for_one_command(flvtag_t* tag, cc_data_cmdlist_t* cmdlist, uint16_t* pos);
+int sei_for_n_commands(flvtag_t* tag, cc_data_cmdlist_t* cmdlist, uint16_t* pos, uint16_t count);
 int sei_for_remaining_commands(flvtag_t* tag, cc_data_cmdlist_t* cmdlist, uint16_t* pos);
+
+typedef struct {
+    double timestamp[5];
+} timecode_ring_t;
+
+void timecode_ring_init(timecode_ring_t* ring);
+void timecode_ring_push(timecode_ring_t* ring, double new_value);
+
+double timecode_ring_rate(timecode_ring_t* ring);
+double timecode_ring_oldest(timecode_ring_t* ring);
+double timecode_ring_newest(timecode_ring_t* ring);
 
 #endif

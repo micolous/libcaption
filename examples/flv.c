@@ -417,7 +417,7 @@ void cmdlist_for_text(cc_data_cmdlist_t* cmdlist, const utf8_char_t* text) {
     }
 }
 
-int sei_for_one_command(flvtag_t* tag, cc_data_cmdlist_t* cmdlist, uint16_t* pos) {
+int sei_for_n_commands(flvtag_t* tag, cc_data_cmdlist_t* cmdlist, uint16_t* pos, uint16_t count) {
     sei_t sei;
     cea708_t cea708;
 
@@ -427,10 +427,10 @@ int sei_for_one_command(flvtag_t* tag, cc_data_cmdlist_t* cmdlist, uint16_t* pos
 
     sei_init(&sei, flvtag_pts(tag));
     cea708_init(&cea708, sei.timestamp);
-    cea708_add_from_cmdlist(&cea708, cmdlist, pos);
-    cea708_add_from_cmdlist(&cea708, cmdlist, pos);
+    for (uint16_t i = 0; i < count; i++) {
+        cea708_add_from_cmdlist(&cea708, cmdlist, pos);
+    }
     sei_append_708(&sei, &cea708);
-
 
     int ret = flvtag_addsei(tag, &sei);
     sei_free(&sei);
@@ -465,4 +465,71 @@ int flvtag_addcaption_scc(flvtag_t* tag, const scc_t* scc)
     int ret = flvtag_addsei(tag, &sei);
     sei_free(&sei);
     return ret;
+}
+
+void timecode_ring_init(timecode_ring_t* ring) {
+    ring->timestamp[0] = -1;
+    ring->timestamp[1] = -1;
+    ring->timestamp[2] = -1;
+    ring->timestamp[3] = -1;
+    ring->timestamp[4] = -1;
+}
+
+void timecode_ring_push(timecode_ring_t* ring, double new_value) {
+    ring->timestamp[4] = ring->timestamp[3];
+    ring->timestamp[3] = ring->timestamp[2];
+    ring->timestamp[2] = ring->timestamp[1];
+    ring->timestamp[1] = ring->timestamp[0];
+    ring->timestamp[0] = new_value;
+}
+
+double timecode_ring_oldest(timecode_ring_t* ring) {
+    double oldest = -1;
+    for (uint8_t i = 0; i < 5; i++) {
+        if (ring->timestamp[i] >= 0 && (oldest == -1 || oldest > ring->timestamp[i])) {
+            oldest = ring->timestamp[i];
+        }
+    }
+
+    return oldest;
+}
+
+double timecode_ring_newest(timecode_ring_t* ring) {
+    double newest = -1;
+    for (uint8_t i = 0; i < 5; i++) {
+        if (newest < ring->timestamp[i]) {
+            newest = ring->timestamp[i];
+        }
+    }
+
+    return newest;
+}
+
+int _doublesort(const void* p1, const void* p2) {
+    return (int)(*(double*)p1 <= *(double*)p2) ? -1 : 1;
+}
+
+double timecode_ring_rate(timecode_ring_t* ring) {
+    // Find average spacing between each frame. Ring times could be any order, so sort first.
+    double stamps[5];
+    memcpy(stamps, ring->timestamp, sizeof(stamps));
+    qsort(stamps, 5, sizeof(double), _doublesort);
+
+    double rate = 0;
+    uint8_t dem = 0;
+
+    for (uint8_t i = 1; i < 5; i++) {
+        if (stamps[i - 1] < 0 || stamps[i] < 0) {
+            continue;
+        }
+
+        dem++;
+        rate += (stamps[i] - stamps[i-1]);
+    }
+
+    if (dem == 0) {
+        return -1;
+    } else {
+        return rate / dem;
+    }
 }
