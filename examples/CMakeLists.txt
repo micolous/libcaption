@@ -27,6 +27,13 @@ if(WIN32)
 endif()
 install(TARGETS flv+srt DESTINATION bin)
 
+add_executable(flv+srtstream flv+srtstream.c flv.c)
+target_link_libraries(flv+srtstream caption)
+if(WIN32)
+  target_link_libraries(flv+srtstream wsock32 ws2_32)
+endif()
+install(TARGETS flv+srtstream DESTINATION bin)
+
 add_executable(flv+scc flv+scc.c flv.c)
 target_link_libraries(flv+scc caption)
 install(TARGETS flv+scc DESTINATION bin)

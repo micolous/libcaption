@@ -543,6 +543,94 @@ libcaption_stauts_t sei_from_caption_frame(sei_t* sei, caption_frame_t* frame)
     return LIBCAPTION_OK;
 }
 
+void push_cc_data(cc_data_cmdlist_t* cmdlist, uint16_t* prev_cc_data, uint16_t cc_data) {
+    if (!cc_data) {
+        // We do't want to write bad data, so just ignore it.
+    } else if (eia608_is_basicna(*prev_cc_data)) {
+        if (eia608_is_basicna(cc_data)) {
+            // previous and current chars are both basicna, combine them into current
+            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_from_basicna(*prev_cc_data, cc_data));
+        } else if (eia608_is_westeu(cc_data)) {
+            // extended charcters overwrite the previous charcter, so insert a dummy char thren write the extended char
+            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_from_basicna(*prev_cc_data, eia608_from_utf8_1(EIA608_CHAR_SPACE, DEFAULT_CHANNEL)));
+            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, cc_data);
+        } else {
+            // previous was basic na, but current isnt; write previous and current
+            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, *prev_cc_data);
+            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, cc_data);
+        }
+
+        *prev_cc_data = 0; // previous is handled, we can forget it now
+    } else if (eia608_is_westeu(cc_data)) {
+        // extended chars overwrite the previous chars, so insert a dummy char
+        // TODO create a map of alternamt chars for eia608_is_westeu instead of using space
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_from_utf8_1(EIA608_CHAR_SPACE, DEFAULT_CHANNEL));
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, cc_data);
+    } else if (eia608_is_basicna(cc_data)) {
+        *prev_cc_data = cc_data;
+    } else {
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, cc_data);
+    }
+
+    if (eia608_is_specialna(cc_data)) {
+        // specialna are treated as control charcters. Duplicated control charcters are discarded
+        // So we write a resume after a specialna as a noop to break repetition detection
+        // TODO only do this if the same charcter is repeated
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_alarm_off, DEFAULT_CHANNEL));
+    }
+}
+
+libcaption_stauts_t cmdlist_from_streaming_text(cc_data_cmdlist_t* cmdlist, const utf8_char_t* data) {
+    if (cmdlist == NULL || data == NULL) {
+        return LIBCAPTION_ERROR;
+    }
+
+    uint16_t prev_cc_data = 0;
+    ssize_t size = (ssize_t)strlen(data);
+    memset(cmdlist, 0, sizeof(cc_data_cmdlist_t));
+    // cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_resume_direct_captioning, DEFAULT_CHANNEL));
+    cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_resume_direct_captioning, DEFAULT_CHANNEL));
+
+    while ((*data) && size) {
+        // skip whitespace at start of line
+        while (size && utf8_char_whitespace(data)) {
+            size_t s = utf8_char_length(data);
+            data += s, size -= s;
+        }
+
+        if (!(*data)) {
+            // Null terminator
+            break;
+        }
+
+        // get charcter count for wrap (or orest of line)
+        utf8_size_t char_count = utf8_wrap_length(data, SCREEN_COLS);
+
+        // Roll up last line
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(1, 0, DEFAULT_CHANNEL, 0));
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_roll_up_2, DEFAULT_CHANNEL));
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_carriage_return, DEFAULT_CHANNEL));
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(1, 0, DEFAULT_CHANNEL, 0));
+
+        // write to caption frame
+        for (size_t c = 0; c < char_count; ++c) {
+            size_t char_length = utf8_char_length(data);
+
+            uint16_t cc_data = eia608_from_utf8_1(data, DEFAULT_CHANNEL);
+
+            push_cc_data(cmdlist, &prev_cc_data, cc_data);
+            data += char_length, size -= char_length;
+        }
+
+        if (0 != prev_cc_data) {
+            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, prev_cc_data);
+            prev_cc_data = 0;
+        }
+    }
+
+    return LIBCAPTION_OK;
+}
+
 libcaption_stauts_t commands_for_frame(cc_data_cmdlist_t* cmdlist, caption_frame_t* frame)
 {
     int r, c;
@@ -597,40 +685,7 @@ libcaption_stauts_t commands_for_frame(cc_data_cmdlist_t* cmdlist, caption_frame
                 prev_unl = unl, prev_styl = styl;
             }
 
-            if (!cc_data) {
-                // We do't want to write bad data, so just ignore it.
-            } else if (eia608_is_basicna(prev_cc_data)) {
-                if (eia608_is_basicna(cc_data)) {
-                    // previous and current chars are both basicna, combine them into current
-                    cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_from_basicna(prev_cc_data, cc_data));
-                } else if (eia608_is_westeu(cc_data)) {
-                    // extended charcters overwrite the previous charcter, so insert a dummy char thren write the extended char
-                    cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_from_basicna(prev_cc_data, eia608_from_utf8_1(EIA608_CHAR_SPACE, DEFAULT_CHANNEL)));
-                    cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, cc_data);
-                } else {
-                    // previous was basic na, but current isnt; write previous and current
-                    cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, prev_cc_data);
-                    cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, cc_data);
-                }
-
-                prev_cc_data = 0; // previous is handled, we can forget it now
-            } else if (eia608_is_westeu(cc_data)) {
-                // extended chars overwrite the previous chars, so insert a dummy char
-                // TODO create a map of alternamt chars for eia608_is_westeu instead of using space
-                cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_from_utf8_1(EIA608_CHAR_SPACE, DEFAULT_CHANNEL));
-                cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, cc_data);
-            } else if (eia608_is_basicna(cc_data)) {
-                prev_cc_data = cc_data;
-            } else {
-                cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, cc_data);
-            }
-
-            if (eia608_is_specialna(cc_data)) {
-                // specialna are treated as control charcters. Duplicated control charcters are discarded
-                // So we write a resume after a specialna as a noop to break repetition detection
-                // TODO only do this if the same charcter is repeated
-                cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_resume_caption_loading, DEFAULT_CHANNEL));
-            }
+            push_cc_data(cmdlist, &prev_cc_data, cc_data);
         }
 
         if (0 != prev_cc_data) {
