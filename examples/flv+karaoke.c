@@ -314,7 +314,7 @@ int main(int argc, char** argv)
                             fprintf(stderr, "T: %0.02f: Cue %0.02f (%0.02fs):\n%s\n", timestamp, (offset + next_cue->timestamp), next_cue->duration, srt_cue_data(next_cue));
                         }
 
-                        sei_for_n_commands(&tag, &next_cmdlist, &next_cmdlist_pos, 2);
+                        sei_for_n_commands(&tag, &next_cmdlist, &next_cmdlist_pos, 5);
                         did_something = 1;
 
                         if (next_cmdlist_pos >= next_cmdlist.length) {
