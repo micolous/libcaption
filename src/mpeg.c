@@ -639,11 +639,12 @@ libcaption_stauts_t cmdlist_from_streaming_karaoke(cc_data_cmdlist_t* cmdlist, c
     uint16_t prev_cc_data = 0;
     ssize_t size = (ssize_t)strlen(data);
     memset(cmdlist, 0, sizeof(cc_data_cmdlist_t));
-    // cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_resume_direct_captioning, DEFAULT_CHANNEL));
-    cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_resume_direct_captioning, DEFAULT_CHANNEL));
     if (*column == 0) {
-        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(14, 0, DEFAULT_CHANNEL, 0));
-        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(14, 0, DEFAULT_CHANNEL, 0));
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_erase_display_memory, DEFAULT_CHANNEL));
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(13, 0, DEFAULT_CHANNEL, 0));
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_roll_up_2, DEFAULT_CHANNEL));
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_carriage_return, DEFAULT_CHANNEL));
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(13, 0, DEFAULT_CHANNEL, 0));
     }
 
     // fprintf(stderr, "column: %" PRIu8 "\n", *column);
@@ -665,10 +666,9 @@ libcaption_stauts_t cmdlist_from_streaming_karaoke(cc_data_cmdlist_t* cmdlist, c
         if (*column + char_count >= SCREEN_COLS) {
             // need to make a new line
             *column = 0;
-            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(13, 0, DEFAULT_CHANNEL, 0));
             cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_roll_up_2, DEFAULT_CHANNEL));
             cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_carriage_return, DEFAULT_CHANNEL));
-            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(14, 0, DEFAULT_CHANNEL, 0));
+            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(13, 0, DEFAULT_CHANNEL, 0));
         }
 
         char_count = utf8_wrap_length(data, SCREEN_COLS - *column);
