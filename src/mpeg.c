@@ -631,6 +631,72 @@ libcaption_stauts_t cmdlist_from_streaming_text(cc_data_cmdlist_t* cmdlist, cons
     return LIBCAPTION_OK;
 }
 
+libcaption_stauts_t cmdlist_from_streaming_karaoke(cc_data_cmdlist_t* cmdlist, const utf8_char_t* data, uint8_t* column) {
+    if (cmdlist == NULL || data == NULL || column == NULL) {
+        return LIBCAPTION_ERROR;
+    }
+
+    uint16_t prev_cc_data = 0;
+    ssize_t size = (ssize_t)strlen(data);
+    memset(cmdlist, 0, sizeof(cc_data_cmdlist_t));
+    // cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_resume_direct_captioning, DEFAULT_CHANNEL));
+    cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_resume_direct_captioning, DEFAULT_CHANNEL));
+    if (*column == 0) {
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(14, 0, DEFAULT_CHANNEL, 0));
+        cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(14, 0, DEFAULT_CHANNEL, 0));
+    }
+
+    // fprintf(stderr, "column: %" PRIu8 "\n", *column);
+    while ((*data) && size) {
+        // skip whitespace at start of line
+        while (size && utf8_char_whitespace(data)) {
+            size_t s = utf8_char_length(data);
+            data += s, size -= s;
+        }
+
+        if (!(*data)) {
+            // Null terminator
+            break;
+        }
+
+        // get charcter count for wrap (or orest of line)
+        utf8_size_t char_count = utf8_line_length(data);
+        // fprintf(stderr, "char_count(1) = %ld\n", char_count);
+        if (*column + char_count >= SCREEN_COLS) {
+            // need to make a new line
+            *column = 0;
+            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(13, 0, DEFAULT_CHANNEL, 0));
+            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_roll_up_2, DEFAULT_CHANNEL));
+            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_control_command(eia608_control_carriage_return, DEFAULT_CHANNEL));
+            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, eia608_row_column_pramble(14, 0, DEFAULT_CHANNEL, 0));
+        }
+
+        char_count = utf8_wrap_length(data, SCREEN_COLS - *column);
+        // fprintf(stderr, "char_count(2) = %ld\n", char_count);
+
+        // write to caption frame
+        for (size_t c = 0; c < char_count; ++c) {
+            size_t char_length = utf8_char_length(data);
+
+            uint16_t cc_data = eia608_from_utf8_1(data, DEFAULT_CHANNEL);
+
+            push_cc_data(cmdlist, &prev_cc_data, cc_data);
+            data += char_length, size -= char_length;
+            *column += 1;
+            if (!size) {
+                break;
+            }
+        }
+
+        if (0 != prev_cc_data) {
+            cmdlist_push(cmdlist, 1, cc_type_ntsc_cc_field_1, prev_cc_data);
+            prev_cc_data = 0;
+        }
+    }
+
+    return LIBCAPTION_OK;
+}
+
 libcaption_stauts_t commands_for_frame(cc_data_cmdlist_t* cmdlist, caption_frame_t* frame)
 {
     int r, c;

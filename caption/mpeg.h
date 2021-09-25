@@ -212,6 +212,7 @@ libcaption_stauts_t commands_for_frame(cc_data_cmdlist_t* cmdlist, caption_frame
 libcaption_stauts_t cmdlist_from_caption_clear(cc_data_cmdlist_t* cmdlist);
 libcaption_stauts_t cmdlist_from_caption_fullreset(cc_data_cmdlist_t* cmdlist);
 libcaption_stauts_t cmdlist_from_streaming_text(cc_data_cmdlist_t* cmdlist, const utf8_char_t* data);
+libcaption_stauts_t cmdlist_from_streaming_karaoke(cc_data_cmdlist_t* cmdlist, const utf8_char_t* data, uint8_t* column);
 
 #ifdef __cplusplus
 }
