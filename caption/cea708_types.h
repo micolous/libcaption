@@ -128,6 +128,97 @@ typedef enum {
     eia608_control_end_of_caption = 0x142F,
 } eia608_control_t;
 
+typedef enum {
+    cea708_control_end_of_text = 0x03,
+    cea708_control_set_current_window_0 = 0x80,
+    cea708_control_set_current_window_1 = 0x81,
+    cea708_control_set_current_window_2 = 0x82,
+    cea708_control_set_current_window_3 = 0x83,
+    cea708_control_set_current_window_4 = 0x84,
+    cea708_control_set_current_window_5 = 0x85,
+    cea708_control_set_current_window_6 = 0x86,
+    cea708_control_set_current_window_7 = 0x87,
+    cea708_control_clear_windows = 0x88,
+    cea708_control_display_windows = 0x89,
+    cea708_control_hide_windows = 0x8a,
+    cea708_control_toggle_windows = 0x8b,
+    cea708_control_delete_windows = 0x8c,
+    cea708_control_delay = 0x8d,
+    cea708_control_delay_cancel = 0x8e,
+    cea708_control_reset = 0x8f,
+    cea708_control_set_pen_attributes = 0x90,
+    cea708_control_set_pen_color = 0x91,
+    cea708_control_set_pen_location = 0x92,
+    cea708_control_set_window_attributes = 0x97,
+    cea708_control_define_window_0 = 0x98,
+    cea708_control_define_window_1 = 0x99,
+    cea708_control_define_window_2 = 0x9a,
+    cea708_control_define_window_3 = 0x9b,
+    cea708_control_define_window_4 = 0x9c,
+    cea708_control_define_window_5 = 0x9d,
+    cea708_control_define_window_6 = 0x9e,
+    cea708_control_define_window_7 = 0x9f,
+} cea708_control_t;
+
+typedef enum {
+    cea708_predefined_window_style_none = 0,
+    cea708_predefined_window_style_608_pop_up = 1,
+    cea708_predefined_window_style_transparent_pop_up = 2,
+    cea708_predefined_window_style_608_pop_up_centered = 3,
+    cea708_predefined_window_style_608_roll_up = 4,
+    cea708_predefined_window_style_transparent_roll_up = 5,
+    cea708_predefined_window_style_608_roll_up_centered = 6,
+    cea708_predefined_window_style_ticker_tape = 7,
+} cea708_predefined_window_style_t;
+
+typedef enum {
+    cea708_predefined_pen_style_none = 0,
+    cea708_predefined_pen_style_default = 1,
+    cea708_predefined_pen_style_mono_serif = 2,
+    cea708_predefined_pen_style_proportional_serif = 3,
+    cea708_predefined_pen_style_mono_sans = 4,
+    cea708_predefined_pen_style_proportional_sans = 5,
+    cea708_predefined_pen_style_mono_sans_transparent = 6,
+    cea708_predefined_pen_style_prop_sans_transparent = 7,
+} cea708_predefined_pen_style_t;
+
+typedef enum {
+    cea708_anchor_point_top_left = 0,
+    cea708_anchor_point_top = 1,
+    cea708_anchor_point_top_right = 2,
+    cea708_anchor_point_left = 3,
+    cea708_anchor_point_center = 4,
+    cea708_anchor_point_right = 5,
+    cea708_anchor_point_bottom_left = 6,
+    cea708_anchor_point_bottom = 7,
+} cea708_anchor_point_t;
+
+typedef struct {
+    unsigned int priority : 3;
+    unsigned int column_lock : 1;
+    unsigned int row_lock : 1;
+    unsigned int visible : 1;
+    unsigned int _padding0 : 2;
+
+    unsigned int anchor_vertical : 7;
+    unsigned int _padding1 : 1;
+
+    unsigned int anchor_horizontal : 8;
+
+    unsigned int row_count : 4;
+    // cea708_anchor_point_t
+    unsigned int anchor_point : 4;
+
+    unsigned int column_count : 6;
+    unsigned int _padding2 : 2;
+
+    // cea708_predefined_pen_style_t
+    unsigned int predefined_pen_style : 3;
+    // cea708_predefined_window_style_t
+    unsigned int predefined_window_style : 3;
+    unsigned int _padding3 : 2;
+} cea708_define_window_t;
+
 #ifdef __cplusplus
 }
 #endif
