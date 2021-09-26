@@ -203,14 +203,16 @@ vtt_t* _vtt_parse(const utf8_char_t* data, size_t size, int srt_mode)
     }
 
     // TODO: Support UTF-8 BOM?
-    if (!srt_mode && strncmp(data, "WEBVTT", 6) != 0) {
-        // WebVTT files must start with WEBVTT
-        fprintf(stderr, "Invalid webvtt header: %.*s\n", 6, data);
-        return NULL;
+    if (!srt_mode) {
+        if (strncmp(data, "WEBVTT", 6) != 0) {
+            // WebVTT files must start with WEBVTT
+            fprintf(stderr, "Invalid webvtt header: %.*s\n", 6, data);
+            return NULL;
+        } else {
+            data += 6;
+            size -= 6;
+        }
     }
-
-    data += 6;
-    size -= 6;
 
     vtt = vtt_new();
 
