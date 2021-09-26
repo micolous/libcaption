@@ -130,6 +130,11 @@ typedef enum {
 
 typedef enum {
     cea708_control_end_of_text = 0x03,
+    cea708_control_backspace = 0x08,
+    cea708_control_form_feed = 0x0c,
+    cea708_control_carriage_return = 0x0d,
+    cea708_control_horizontal_carriage_return = 0x0e,
+
     cea708_control_set_current_window_0 = 0x80,
     cea708_control_set_current_window_1 = 0x81,
     cea708_control_set_current_window_2 = 0x82,
@@ -193,6 +198,7 @@ typedef enum {
     cea708_anchor_point_bottom = 7,
 } cea708_anchor_point_t;
 
+#pragma pack(1)
 typedef struct {
     unsigned int priority : 3;
     unsigned int column_lock : 1;
@@ -201,7 +207,7 @@ typedef struct {
     unsigned int _padding0 : 2;
 
     unsigned int anchor_vertical : 7;
-    unsigned int _padding1 : 1;
+    unsigned int relative_positioning : 1;
 
     unsigned int anchor_horizontal : 8;
 

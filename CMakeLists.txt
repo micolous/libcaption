@@ -14,32 +14,28 @@ endif()
 # Don't need to prefix local includes with "caption/*"
 include_directories(${PROJECT_SOURCE_DIR}/caption)
 
-option(ENABLE_RE2C "Use RE2C to generate eia608.c" OFF)
 set(eia608_from_utf8_c ${PROJECT_SOURCE_DIR}/src/eia608_from_utf8.c)
 set(eia608_from_utf8_c_cached ${PROJECT_SOURCE_DIR}/src/eia608_from_utf8.c.cached)
-if(ENABLE_RE2C)
-  find_program(RE2C re2c)
-  set(eia608_from_utf8_re2c ${PROJECT_SOURCE_DIR}/src/eia608_from_utf8.re2c)
-  if(RE2C)
-    message(STATUS "Found re2c: ${RE2C}")
+set(eia608_from_utf8_re2c ${PROJECT_SOURCE_DIR}/src/eia608_from_utf8.re2c)
 
-    # Create a temporary file until re2c regenerates it so that CMake doesn't
-    # complain about the missing source file
-    if(NOT EXISTS ${eia608_from_utf8_c})
-      file(WRITE ${eia608_from_utf8_c} "")
-    endif()
+find_program(RE2C re2c)
+if(RE2C)
+  message(STATUS "Found re2c: ${RE2C}")
 
-    add_custom_target(re2c
-      COMMAND ${CMAKE_COMMAND} -E remove ${eia608_from_utf8_c}
-      COMMAND ${RE2C} -bis -o ${eia608_from_utf8_c} ${eia608_from_utf8_re2c}
-      COMMAND ${CMAKE_COMMAND} -E copy ${eia608_from_utf8_c} ${eia608_from_utf8_c_cached}
-      DEPENDS ${eia608_from_utf8_re2c}
-      COMMENT "Generating ${eia608_from_utf8_re2c}")
-  else()
-    message(SEND_ERROR "Could not find re2c executable")
+  # Create a temporary file until re2c regenerates it so that CMake doesn't
+  # complain about the missing source file
+  if(NOT EXISTS ${eia608_from_utf8_c})
+    file(WRITE ${eia608_from_utf8_c} "")
   endif()
+
+  add_custom_target(re2c
+    COMMAND ${CMAKE_COMMAND} -E remove ${eia608_from_utf8_c}
+    COMMAND ${RE2C} -bis -o ${eia608_from_utf8_c} ${eia608_from_utf8_re2c}
+    COMMAND ${CMAKE_COMMAND} -E copy ${eia608_from_utf8_c} ${eia608_from_utf8_c_cached}
+    DEPENDS ${eia608_from_utf8_re2c}
+    COMMENT "Generating ${eia608_from_utf8_re2c}")
 else()
-  message(WARNING "Using cached re2c file: ${eia608_from_utf8_c_cached}")
+  message(WARNING "Could not find re2c, using cached re2c file: ${eia608_from_utf8_c_cached}")
   if(NOT EXISTS ${eia608_from_utf8_c})
     file(WRITE ${eia608_from_utf8_c} "")
   endif()
@@ -50,6 +46,7 @@ set(CAPTION_SOURCES
   src/caption.c
   src/caption_frame.c
   src/cea708.c
+  src/cea708_charmap.c
   src/cmdlist.c
   src/dtvcc.c
   src/eia608.c
@@ -67,6 +64,7 @@ set(CAPTION_HEADERS
   caption/caption.h
   caption/caption_frame.h
   caption/cea708.h
+  caption/cea708_charmap.h
   caption/cea708_types.h
   caption/cmdlist.h
   caption/dtvcc.h

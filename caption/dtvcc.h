@@ -12,6 +12,8 @@ extern "C" {
 
 #define DTVCC_MAX_PACKET_SIZE 127
 #define DTVCC_MAX_SERVICE_BLOCK_SIZE 0x1f
+#define DTVCC_SCREEN_ROWS 15
+#define DTVCC_SCREEN_COLS 32
 
 /**
  * Initialises a DTVCC packet with the start bytes.
@@ -43,7 +45,7 @@ libcaption_stauts_t dtvcc_write_service_block(dtvcc_packet_t* dtvcc, const dtvcc
 /**
  * Terminate a DTVCC packet, and update fields.
  */
-libcaption_stauts_t dtvcc_finish_service_blocks(dtvcc_packet_t* dtvcc);
+libcaption_stauts_t dtvcc_finish_service_blocks(dtvcc_packet_t* dtvcc, uint8_t sequence_number);
 
 // static inline size_t dvtvcc_packet_size_bytes(const struct dtvcc_packet_t *dvtcc) { return dvtcc->packet_size*2-1;}
 

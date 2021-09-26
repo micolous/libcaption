@@ -1,5 +1,13 @@
 #include "dtvcc.h"
 
+#include "caption.h"
+#include "cea708_charmap.h"
+#include "cmdlist.h"
+#include "utf8.h"
+
+#include <endian.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 
@@ -57,7 +65,7 @@ libcaption_stauts_t dtvcc_packet_data(dtvcc_packet_t* dtvcc, uint8_t cc_data1, u
         return LIBCAPTION_ERROR;
     }
 
-    if (*pos >= dtvcc->packet_data_size) {
+    if (*pos + 1 >= dtvcc->packet_data_size) {
         // Current position is larger than the header indicated
         return LIBCAPTION_ERROR;
     }
@@ -157,7 +165,7 @@ libcaption_stauts_t dtvcc_write_service_block(dtvcc_packet_t* dtvcc, const dtvcc
 
 static const dtvcc_service_block_t null_service_block = {0, 0};
 
-libcaption_stauts_t dtvcc_finish_service_blocks(dtvcc_packet_t* dtvcc) {
+libcaption_stauts_t dtvcc_finish_service_blocks(dtvcc_packet_t* dtvcc, uint8_t sequence_number) {
     libcaption_stauts_t err;
     if (!dtvcc) {
         return LIBCAPTION_ERROR;
@@ -182,9 +190,150 @@ libcaption_stauts_t dtvcc_finish_service_blocks(dtvcc_packet_t* dtvcc) {
         dtvcc->packet_size_code = (dtvcc->packet_data_size + 1) / 2;
     }
 
+    dtvcc->sequence_number = sequence_number % 4;
     return LIBCAPTION_OK;
 }
 
+libcaption_stauts_t dtvcc_packet_to_cmdlist(const dtvcc_packet_t* dtvcc, cc_data_cmdlist_t* cmdlist) {
+    
+    // cmdlist_push();
+
+    return LIBCAPTION_OK;
+}
+
+uint8_t dtvcc_push_command_args(dtvcc_service_block_t* service_block, cea708_control_t cmd, const void* args, uint8_t args_len) {
+    if (!service_block || (!args && args_len > 0)) {
+        return 0;
+    }
+
+    if (service_block->block_size > args_len + 1) {
+        // service block is full
+        return 0;
+    }
+
+    service_block->block_data[service_block->block_size] = (uint8_t)(cmd & 0xff);
+    service_block->block_size++;
+
+    if (args && args_len > 0) {
+        memcpy(&service_block->block_data[service_block->block_size], args, args_len);
+        service_block->block_size += args_len;
+    }
+    return 1 + args_len;
+}
+
+inline uint8_t dtvcc_push_command(dtvcc_service_block_t* service_block, cea708_control_t cmd) {
+    return dtvcc_push_command_args(service_block, cmd, NULL, 0);
+}
+
+uint8_t dtvcc_define_window(dtvcc_service_block_t* service_block, uint8_t window_id, const cea708_define_window_t* def) {
+    if (window_id > 7) {
+        return 0;
+    }
+    if (sizeof(cea708_define_window_t) != 6) {
+        fprintf(stderr, "sizeof(cea708_define_window_t) == %zd, expected 6\n", sizeof(sizeof(cea708_define_window_t)));
+        exit(1);
+        return 0;
+    }
+
+    return dtvcc_push_command_args(service_block, cea708_control_define_window_0 + window_id, def, 6);
+}
+
+uint8_t dtvcc_delete_windows(dtvcc_service_block_t* service_block, uint8_t window_mask) {
+    return dtvcc_push_command_args(service_block, cea708_control_delete_windows, &window_mask, 1);
+}
+
+inline uint8_t dtvcc_delete_all_windows(dtvcc_service_block_t* service_block) {
+    return dtvcc_delete_windows(service_block, 0xff);
+}
+
+const cea708_define_window_t karaoke_win = {
+    .priority = 0,
+    .column_lock = 1,
+    .row_lock = 1,
+    .visible = 1,
+    .anchor_vertical = 99,
+    .relative_positioning = 1,
+    .anchor_horizontal = 49,
+    .row_count = 2,
+    .anchor_point = cea708_anchor_point_bottom,
+    .column_count = 15,
+    .predefined_pen_style = cea708_predefined_pen_style_proportional_sans,
+    .predefined_window_style = cea708_predefined_window_style_608_roll_up,
+};
+
+libcaption_stauts_t dtvcc_from_streaming_karaoke(dtvcc_service_block_t* service_block, const utf8_char_t* data, uint8_t* column) {
+    if (service_block == NULL || data == NULL || column == NULL) {
+        return LIBCAPTION_ERROR;
+    }
+
+    ssize_t size = (ssize_t)strlen(data);
+    memset(service_block, 0, sizeof(dtvcc_service_block_t));
+
+    // TODO: implement other service numbers
+    service_block->service_number = 1;
+
+    if (*column == 0) {
+        dtvcc_delete_all_windows(service_block);
+        dtvcc_define_window(service_block, 0, &karaoke_win);
+    }
+
+    dtvcc_push_command(service_block, cea708_control_set_current_window_0);
+
+    // fprintf(stderr, "column: %" PRIu8 "\n", *column);
+    while ((*data) && size) {
+        // skip whitespace at start of line
+        while (size && utf8_char_whitespace(data)) {
+            size_t s = utf8_char_length(data);
+            data += s, size -= s;
+        }
+
+        if (!(*data)) {
+            // Null terminator
+            break;
+        }
+
+        // get charcter count for wrap (or orest of line)
+        utf8_size_t char_count = utf8_line_length(data);
+        // fprintf(stderr, "char_count(1) = %ld\n", char_count);
+        if (*column + char_count >= SCREEN_COLS) {
+            // need to make a new line
+            *column = 0;
+            dtvcc_define_window(service_block, 0, &karaoke_win);
+            dtvcc_push_command(service_block, cea708_control_carriage_return);
+        }
+
+        char_count = utf8_wrap_length(data, SCREEN_COLS - *column);
+        // fprintf(stderr, "char_count(2) = %ld\n", char_count);
+
+        // write to caption frame
+        for (size_t c = 0; c < char_count; ++c) {
+            size_t char_length = utf8_char_length(data);
+
+            uint16_t cc_data = cea708_from_utf8_1(data);
+            if (cc_data > 0 && cc_data <= 0xff) {
+                dtvcc_push_command(service_block, (uint8_t)(cc_data & 0xff));
+            } else if (cc_data > 0xff) {
+                uint8_t high_byte = (cc_data >> 8) & 0xff;
+
+                // Avoids a copy
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+                const uint8_t* low_byte = (const uint8_t*)&cc_data;
+#else
+                const uint8_t* low_byte = (const uint8_t*)&cc_data + 1;
+#endif
+                dtvcc_push_command_args(service_block, high_byte, low_byte, 1);
+            }
+
+            data += char_length, size -= char_length;
+            *column += 1;
+            if (!size) {
+                break;
+            }
+        }
+    }
+
+    return LIBCAPTION_OK;
+}
 
 
 /*
