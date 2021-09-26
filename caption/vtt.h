@@ -28,6 +28,7 @@ extern "C" {
 #endif
 
 #include "caption.h"
+#include "caption_frame.h"
 #include "eia608.h"
 
 enum VTT_BLOCK_TYPE {

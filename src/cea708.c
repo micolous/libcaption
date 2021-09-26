@@ -22,9 +22,12 @@
 /* THE SOFTWARE.                                                                              */
 /**********************************************************************************************/
 #include "cea708.h"
+
 #include <float.h>
 #include <memory.h>
 #include <stdio.h>
+
+#include "eia608.h"
 
 int cea708_cc_count(user_data_t* data)
 {
@@ -148,67 +151,6 @@ libcaption_stauts_t cea708_parse_h262(const uint8_t* data, size_t size, cea708_t
     cea708->user_data_type_code = data[4];
     if (3 == cea708->user_data_type_code) {
         cea708_parse_user_data_type_strcture(data + 5, size - 5, &cea708->user_data);
-    }
-
-    return LIBCAPTION_OK;
-}
-
-libcaption_stauts_t cmdlist_push(cc_data_cmdlist_t* cmdlist, int valid, cea708_cc_type_t type, uint16_t cc_data) {
-    if (cmdlist == NULL || cmdlist->length >= MAX_CC_CMDLIST_SIZE) {
-        return LIBCAPTION_ERROR;
-    }
-
-    uint16_t i = cmdlist->length;
-    cmdlist->length++;
-
-    cmdlist->commands[i].marker_bits = 0x1f;
-    cmdlist->commands[i].cc_valid = valid;
-    cmdlist->commands[i].cc_type = type;
-    cmdlist->commands[i].cc_data = cc_data;
-
-    return LIBCAPTION_OK;
-}
-
-libcaption_stauts_t cea708_add_from_cmdlist(cea708_t* cea708, cc_data_cmdlist_t* cmdlist, uint16_t* pos) {
-    if (cea708 == NULL || cmdlist == NULL || pos == NULL) {
-        return LIBCAPTION_ERROR;
-    }
-
-    if (cea708->user_data.cc_count >= 30) {
-        // Out of space
-        return LIBCAPTION_ERROR;
-    }
-
-    if (*pos >= cmdlist->length) {
-        // Nothing to do
-        return LIBCAPTION_ERROR;
-    }
-
-    memcpy(&cea708->user_data.cc_data[cea708->user_data.cc_count],
-           &cmdlist->commands[*pos], sizeof(cc_data_t));
-    
-    cea708->user_data.cc_count++;
-    (*pos)++;
-    return LIBCAPTION_OK;
-}
-
-libcaption_stauts_t cea708_add_all_from_cmdlist(cea708_t* cea708, cc_data_cmdlist_t* cmdlist, uint16_t* pos) {
-    libcaption_stauts_t e;
-    uint16_t p = 0;
-
-    if (cea708 == NULL || cmdlist == NULL) {
-        return LIBCAPTION_ERROR;
-    }
-
-    if (pos == NULL) {
-        pos = &p;
-    }
-
-    while (*pos < cmdlist->length) {
-        e = cea708_add_from_cmdlist(cea708, cmdlist, pos);
-        if (e != LIBCAPTION_OK) {
-            return e;
-        }
     }
 
     return LIBCAPTION_OK;
