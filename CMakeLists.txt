@@ -51,6 +51,7 @@ set(CAPTION_SOURCES
   src/caption_frame.c
   src/cea708.c
   src/cmdlist.c
+  src/dtvcc.c
   src/eia608.c
   src/eia608_charmap.c
   src/eia608_from_utf8.c
@@ -68,6 +69,7 @@ set(CAPTION_HEADERS
   caption/cea708.h
   caption/cea708_types.h
   caption/cmdlist.h
+  caption/dtvcc.h
   caption/eia608.h
   caption/eia608_charmap.h
   caption/mpeg.h

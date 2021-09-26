@@ -69,6 +69,31 @@ typedef struct {
     double timestamp;
 } cea708_t;
 
+typedef struct {
+    unsigned int sequence_number : 2;
+    unsigned int packet_size_code : 6;
+
+    // not part of packet, derrived from packet_size_code
+    uint8_t packet_data_size;
+
+    char packet_data[127];
+} dtvcc_packet_t;
+
+typedef struct {
+    unsigned int service_number : 3;
+    unsigned int block_size : 5;
+
+    // Padding is always 0.
+    // Only present if block_size != 0 && service_number == 7
+    unsigned int _padding : 2;
+    // Only present if block_size != 0 && service_number == 7
+    unsigned int extended_service_number : 6;
+
+    // Only present if service_number != 0
+    // length: block_size bytes
+    char block_data[63];
+} dtvcc_service_block_t;
+
 typedef enum {
     eia608_style_white = 0,
     eia608_style_green = 1,
