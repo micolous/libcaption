@@ -225,6 +225,15 @@ typedef struct {
     unsigned int _padding3 : 2;
 } cea708_define_window_t;
 
+#pragma pack(1)
+typedef struct {
+    unsigned int row : 4;
+    unsigned int _padding0 : 4;
+
+    unsigned int column : 6;
+    unsigned int _padding1 : 2;
+} cea708_set_pen_location_t;
+
 #ifdef __cplusplus
 }
 #endif

@@ -70,7 +70,7 @@ libcaption_stauts_t cea708_parse_h262(const uint8_t* data, size_t size, cea708_t
 /*! \brief
     \param
 */
-libcaption_stauts_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* cea708);
+libcaption_stauts_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* cea708, dtvcc_packet_t* dtvcc, uint8_t* dtvcc_pos);
 /*! \brief
     \param
 */

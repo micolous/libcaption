@@ -28,6 +28,7 @@
 #include <stdio.h>
 
 #include "eia608.h"
+#include "dtvcc.h"
 
 int cea708_cc_count(user_data_t* data)
 {
@@ -285,7 +286,7 @@ void cea708_dump(cea708_t* cea708)
     }
 }
 
-libcaption_stauts_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* cea708)
+libcaption_stauts_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* cea708, dtvcc_packet_t* dtvcc, uint8_t* dtvcc_pos)
 {
     int i, count = cea708_cc_count(&cea708->user_data);
     libcaption_stauts_t status = LIBCAPTION_OK;
@@ -296,11 +297,67 @@ libcaption_stauts_t cea708_to_caption_frame(caption_frame_t* frame, cea708_t* ce
             cea708_cc_type_t type;
             uint16_t cc_data = cea708_cc_data(&cea708->user_data, i, &valid, &type);
 
-            if (valid && cc_type_ntsc_cc_field_1 == type) {
-                status = libcaption_status_update(status, caption_frame_decode(frame, cc_data, cea708->timestamp));
+            if (!valid) {
+                continue;
+            }
+
+            switch (type) {
+                case cc_type_ntsc_cc_field_1:
+                    status = libcaption_status_update(status, caption_frame_decode(frame, cc_data, cea708->timestamp));
+                    break;
+
+                case cc_type_dtvcc_packet_start:
+                    if (*dtvcc_pos == 0) {
+                        status = libcaption_status_update(
+                            status, dtvcc_packet_start(dtvcc, cc_data >> 8, cc_data & 0xff));
+                        *dtvcc_pos = 1;
+                    } else {
+                        fprintf(stderr, "unexpected packet start!\n");
+                        exit(1);
+                    }
+                    break;
+
+                case cc_type_dtvcc_packet_data:
+                    if (*dtvcc_pos > 0) {
+                        status = libcaption_status_update(
+                            status, dtvcc_packet_data(dtvcc, cc_data >> 8, cc_data & 0xff, dtvcc_pos));
+                    } else {
+                        fprintf(stderr, "unexpected data!\n");
+                        exit(1);
+                    }
+                    break;
+
+                default:
+                    // fprintf(stderr, "unhandled type (%u): data = %04x\n", type, cc_data);
+                    break;
             }
         }
     }
+
+    if (*dtvcc_pos > 0 && dtvcc->packet_data_size == *dtvcc_pos && status != LIBCAPTION_ERROR) {
+        // End of DTVCC packet, time to parse it.
+        uint8_t pos = 0;
+        dtvcc_service_block_t service;
+        fprintf(stderr, "dtvcc seq %d: %d bytes\n", dtvcc->sequence_number, dtvcc->packet_data_size);
+        while (pos < dtvcc->packet_data_size) { 
+            // Read each service.
+            status = libcaption_status_update(status, dtvcc_read_service_block(dtvcc, &service, &pos));
+
+            if (status == LIBCAPTION_ERROR) {
+                break;
+            }
+
+            fprintf(stderr, "service %d: %d bytes...\n", service.service_number, service.block_size);
+        }
+
+        fprintf(stderr, "End of DTVCC packet!\n");
+        *dtvcc_pos = 0;
+        memset(dtvcc, 0, sizeof(dtvcc_packet_t));
+    }
+
+    // if (*dtvcc_pos > 0) {
+    //     fprintf(stderr, "Got DTVCC packet: #%u, size = %u\n", dtvcc.sequence_number, dtvcc.packet_data_size);
+    // }
 
     return status;
 }

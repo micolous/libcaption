@@ -59,7 +59,7 @@ void mpeg_bitstream_init(mpeg_bitstream_t* packet);
 /*! \brief
     \param
 */
-size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, const uint8_t* data, size_t size, unsigned stream_type, double dts, double cts);
+size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, const uint8_t* data, size_t size, unsigned stream_type, double dts, double cts, dtvcc_packet_t* dtvcc, uint8_t *dtvcc_pos);
 /*! \brief
     \param
 */
@@ -69,7 +69,7 @@ static inline libcaption_stauts_t mpeg_bitstream_status(mpeg_bitstream_t* packet
         Returns number of latent frames remaining, 0 when complete;
     \param
 */
-size_t mpeg_bitstream_flush(mpeg_bitstream_t* packet, caption_frame_t* frame);
+size_t mpeg_bitstream_flush(mpeg_bitstream_t* packet, caption_frame_t* frame, dtvcc_packet_t* dtvcc, uint8_t *dtvcc_pos);
 ////////////////////////////////////////////////////////////////////////////////
 typedef enum {
     sei_type_buffering_period = 0,
@@ -204,7 +204,7 @@ libcaption_stauts_t sei_from_caption_clear(sei_t* sei);
 /*! \brief
     \param
 */
-libcaption_stauts_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame);
+libcaption_stauts_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame, dtvcc_packet_t* dtvcc, uint8_t *dtvcc_pos);
 ////////////////////////////////////////////////////////////////////////////////
 
 void sei_append_708(sei_t* sei, cea708_t* cea708);

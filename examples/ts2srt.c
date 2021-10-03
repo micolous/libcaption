@@ -37,6 +37,8 @@ int main(int argc, char** argv)
     mpeg_bitstream_t mpegbs;
     caption_frame_t frame;
     uint8_t pkt[TS_PACKET_SIZE];
+    dtvcc_packet_t dtvcc;
+    uint8_t dtvcc_pos = 0;
     ts_init(&ts);
     caption_frame_init(&frame);
     mpeg_bitstream_init(&mpegbs);
@@ -55,7 +57,9 @@ int main(int argc, char** argv)
             double dts = ts_dts_seconds(&ts);
             double cts = ts_cts_seconds(&ts);
             while (ts.size) {
-                size_t bytes_read = mpeg_bitstream_parse(&mpegbs, &frame, ts.data, ts.size, ts.stream_type, dts, cts);
+                size_t bytes_read = mpeg_bitstream_parse(
+                    &mpegbs, &frame, ts.data, ts.size, ts.stream_type, dts, cts,
+                    &dtvcc, &dtvcc_pos);
                 ts.data += bytes_read, ts.size -= bytes_read;
                 switch (mpeg_bitstream_status(&mpegbs)) {
                 default:
@@ -78,7 +82,7 @@ int main(int argc, char** argv)
     } // while
 
     // Flush anything left
-    while (mpeg_bitstream_flush(&mpegbs, &frame)) {
+    while (mpeg_bitstream_flush(&mpegbs, &frame, &dtvcc, &dtvcc_pos)) {
         if (mpeg_bitstream_status(&mpegbs)) {
             srt_cue_from_caption_frame(&frame, srt);
         }

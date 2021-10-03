@@ -14,6 +14,9 @@ endif()
 # Don't need to prefix local includes with "caption/*"
 include_directories(${PROJECT_SOURCE_DIR}/caption)
 
+set(cea708_from_utf8_c ${PROJECT_SOURCE_DIR}/src/cea708_from_utf8.c)
+set(cea708_from_utf8_c_cached ${PROJECT_SOURCE_DIR}/src/cea708_from_utf8.c.cached)
+set(cea708_from_utf8_re2c ${PROJECT_SOURCE_DIR}/src/cea708_from_utf8.re2c)
 set(eia608_from_utf8_c ${PROJECT_SOURCE_DIR}/src/eia608_from_utf8.c)
 set(eia608_from_utf8_c_cached ${PROJECT_SOURCE_DIR}/src/eia608_from_utf8.c.cached)
 set(eia608_from_utf8_re2c ${PROJECT_SOURCE_DIR}/src/eia608_from_utf8.re2c)
@@ -27,15 +30,30 @@ if(RE2C)
   if(NOT EXISTS ${eia608_from_utf8_c})
     file(WRITE ${eia608_from_utf8_c} "")
   endif()
+  if(NOT EXISTS ${cea708_from_utf8_c})
+    file(WRITE ${cea708_from_utf8_c} "")
+  endif()
 
-  add_custom_target(re2c
+  add_custom_target(re2c_eia608
     COMMAND ${CMAKE_COMMAND} -E remove ${eia608_from_utf8_c}
     COMMAND ${RE2C} -bis -o ${eia608_from_utf8_c} ${eia608_from_utf8_re2c}
     COMMAND ${CMAKE_COMMAND} -E copy ${eia608_from_utf8_c} ${eia608_from_utf8_c_cached}
     DEPENDS ${eia608_from_utf8_re2c}
-    COMMENT "Generating ${eia608_from_utf8_re2c}")
+    COMMENT "Generating ${eia608_from_utf8_c}")
+
+  add_custom_target(re2c_cea708
+    COMMAND ${CMAKE_COMMAND} -E remove ${cea708_from_utf8_c}
+    COMMAND ${RE2C} -bis -o ${cea708_from_utf8_c} ${cea708_from_utf8_re2c}
+    COMMAND ${CMAKE_COMMAND} -E copy ${cea708_from_utf8_c} ${cea708_from_utf8_c_cached}
+    DEPENDS ${cea708_from_utf8_re2c}
+    COMMENT "Generating ${cea708_from_utf8_c}")
 else()
-  message(WARNING "Could not find re2c, using cached re2c file: ${eia608_from_utf8_c_cached}")
+  message(WARNING "Could not find re2c, using cached re2c files")
+  if(NOT EXISTS ${cea708_from_utf8_c})
+    file(WRITE ${cea708_from_utf8_c} "")
+  endif()
+  configure_file(${cea708_from_utf8_c_cached} ${cea708_from_utf8_c} COPYONLY)
+
   if(NOT EXISTS ${eia608_from_utf8_c})
     file(WRITE ${eia608_from_utf8_c} "")
   endif()
@@ -47,6 +65,7 @@ set(CAPTION_SOURCES
   src/caption_frame.c
   src/cea708.c
   src/cea708_charmap.c
+  src/cea708_from_utf8.c
   src/cmdlist.c
   src/dtvcc.c
   src/eia608.c
@@ -80,8 +99,8 @@ set(CAPTION_HEADERS
 
 add_library(caption ${CAPTION_SOURCES})
 
-if(ENABLE_RE2C)
-  add_dependencies(caption re2c)
+if(RE2C)
+  add_dependencies(caption re2c_eia608 re2c_cea708)
 endif()
 
 if(CMAKE_VERSION VERSION_EQUAL 2.8.12 OR CMAKE_VERSION VERSION_GREATER 2.8.12)

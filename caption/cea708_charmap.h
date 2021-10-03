@@ -10,6 +10,16 @@ extern "C" {
 // #define EIA608_CHAR_COUNT 176
 // extern const char* eia608_char_map[EIA608_CHAR_COUNT];
 
+/**
+ * Encodes a single UTF-8 codepoint (which may be multiple bytes) using CEA-708
+ * character map.
+ * 
+ * Characters representable by a single byte in CEA-708 encoding return a value
+ * <= 0xFF. Characters representable by two bytes in CEA-708 encoding return a
+ * value >= 0x100.
+ * 
+ * If the character is unknown, or c is null, returns 0x00.
+ */
 uint16_t cea708_from_utf8_1(const utf8_char_t* c);
 
 #define CEA708_CHAR_SPACE "\x20"

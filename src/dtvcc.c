@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <arpa/inet.h>
 
 /**
  * Get the expected DTVCC packet size.
@@ -112,7 +112,7 @@ libcaption_stauts_t dtvcc_read_service_block(const dtvcc_packet_t* dtvcc, dtvcc_
         *pos += 1;
     }
 
-    if (*pos + service_block->block_size >= size) {
+    if (*pos + service_block->block_size > size) {
         return LIBCAPTION_ERROR;
     }
 
@@ -194,20 +194,48 @@ libcaption_stauts_t dtvcc_finish_service_blocks(dtvcc_packet_t* dtvcc, uint8_t s
     return LIBCAPTION_OK;
 }
 
-libcaption_stauts_t dtvcc_packet_to_cmdlist(const dtvcc_packet_t* dtvcc, cc_data_cmdlist_t* cmdlist) {
-    
-    // cmdlist_push();
+libcaption_stauts_t dtvcc_packet_to_cmdlist(const dtvcc_packet_t *dtvcc, cc_data_cmdlist_t *cmdlist)
+{
+    if (!dtvcc || !cmdlist || dtvcc->packet_data_size < 1 || (dtvcc->packet_data_size & 0x1) == 0)
+    {
+        return LIBCAPTION_ERROR;
+    }
+    libcaption_stauts_t err = LIBCAPTION_OK;
+
+    memset(cmdlist, 0, sizeof(cc_data_cmdlist_t));
+
+    // Start packet
+    uint16_t p = ((dtvcc->sequence_number & 0x03) << 14) |
+                 ((dtvcc->packet_size_code & 0x3f) << 8) |
+                 (dtvcc->packet_data[0] & 0xff);
+    err = cmdlist_push(cmdlist, 1, cc_type_dtvcc_packet_start, p);
+    if (err != LIBCAPTION_OK) {
+        return err;
+    }
+
+    // Iterate other bytes
+    for (int i = 1; i < dtvcc->packet_data_size; i += 2) {
+        p = htons(*(uint16_t*)(dtvcc->packet_data + i));
+        err = cmdlist_push(cmdlist, 1, cc_type_dtvcc_packet_data, p);
+        if (err != LIBCAPTION_OK) {
+            return err;
+        }
+    }
 
     return LIBCAPTION_OK;
 }
 
 uint8_t dtvcc_push_command_args(dtvcc_service_block_t* service_block, cea708_control_t cmd, const void* args, uint8_t args_len) {
     if (!service_block || (!args && args_len > 0)) {
+        fprintf(stderr, "dtvcc_push_command_args: invalid args\n");
+        exit(1);
         return 0;
     }
 
-    if (service_block->block_size > args_len + 1) {
+    if (service_block->block_size + args_len + 1 > DTVCC_MAX_SERVICE_BLOCK_SIZE) {
         // service block is full
+        fprintf(stderr, "dtvcc_push_command_args: service block full, need (\n");
+        exit(1);
         return 0;
     }
 
@@ -229,8 +257,9 @@ uint8_t dtvcc_define_window(dtvcc_service_block_t* service_block, uint8_t window
     if (window_id > 7) {
         return 0;
     }
+    // TODO: static assert
     if (sizeof(cea708_define_window_t) != 6) {
-        fprintf(stderr, "sizeof(cea708_define_window_t) == %zd, expected 6\n", sizeof(sizeof(cea708_define_window_t)));
+        fprintf(stderr, "sizeof(cea708_define_window_t) == %zd, expected 6\n", sizeof(cea708_define_window_t));
         exit(1);
         return 0;
     }
@@ -246,6 +275,23 @@ inline uint8_t dtvcc_delete_all_windows(dtvcc_service_block_t* service_block) {
     return dtvcc_delete_windows(service_block, 0xff);
 }
 
+uint8_t dtvcc_set_pen_location(dtvcc_service_block_t* service_block, uint8_t row, uint8_t column) {
+    // Clamp values
+    cea708_set_pen_location_t spl = {
+        .row = row & 0x0f,
+        .column = column & 0x3f,
+    };
+
+    // TODO: static assert
+    if (sizeof(cea708_set_pen_location_t) != 2) {
+        fprintf(stderr, "sizeof(cea708_set_pen_location_t) == %zd, expected 2\n", sizeof(cea708_set_pen_location_t));
+        exit(1);
+        return 0;
+    }
+
+    return dtvcc_push_command_args(service_block, cea708_control_set_pen_location, &spl, 2);
+}
+
 const cea708_define_window_t karaoke_win = {
     .priority = 0,
     .column_lock = 1,
@@ -256,7 +302,7 @@ const cea708_define_window_t karaoke_win = {
     .anchor_horizontal = 49,
     .row_count = 2,
     .anchor_point = cea708_anchor_point_bottom,
-    .column_count = 15,
+    .column_count = SCREEN_COLS,
     .predefined_pen_style = cea708_predefined_pen_style_proportional_sans,
     .predefined_window_style = cea708_predefined_window_style_608_roll_up,
 };
@@ -273,8 +319,11 @@ libcaption_stauts_t dtvcc_from_streaming_karaoke(dtvcc_service_block_t* service_
     service_block->service_number = 1;
 
     if (*column == 0) {
+        // 8.11.1 Proper Order of Data, Simple Roll-up Style Captions
         dtvcc_delete_all_windows(service_block);
         dtvcc_define_window(service_block, 0, &karaoke_win);
+        dtvcc_set_pen_location(service_block, 0, 0);
+        dtvcc_push_command(service_block, cea708_control_carriage_return);
     }
 
     dtvcc_push_command(service_block, cea708_control_set_current_window_0);
@@ -298,7 +347,9 @@ libcaption_stauts_t dtvcc_from_streaming_karaoke(dtvcc_service_block_t* service_
         if (*column + char_count >= SCREEN_COLS) {
             // need to make a new line
             *column = 0;
+            dtvcc_delete_windows(service_block, 0xfe);
             dtvcc_define_window(service_block, 0, &karaoke_win);
+            dtvcc_set_pen_location(service_block, 0, 0);
             dtvcc_push_command(service_block, cea708_control_carriage_return);
         }
 
@@ -334,14 +385,3 @@ libcaption_stauts_t dtvcc_from_streaming_karaoke(dtvcc_service_block_t* service_
 
     return LIBCAPTION_OK;
 }
-
-
-/*
-void dtvcc_packet_data(struct dtvcc_packet_t* dvtcc, uint8_t cc_data1, uint8_t cc_data2)
-{
-    if (dvtcc->service_number) {
-        if (7 == dvtcc->service_number) {
-            dvtcc->service_number
-        }
-    }
-}*/

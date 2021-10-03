@@ -394,7 +394,7 @@ libcaption_stauts_t sei_parse(sei_t* sei, const uint8_t* data, size_t size, doub
     return LIBCAPTION_OK;
 }
 ////////////////////////////////////////////////////////////////////////////////
-libcaption_stauts_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame)
+libcaption_stauts_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame, dtvcc_packet_t* dtvcc, uint8_t* dtvcc_pos)
 {
     cea708_t cea708;
     sei_message_t* msg;
@@ -405,7 +405,7 @@ libcaption_stauts_t sei_to_caption_frame(sei_t* sei, caption_frame_t* frame)
     for (msg = sei_message_head(sei); msg; msg = sei_message_next(msg)) {
         if (sei_type_user_data_registered_itu_t_t35 == sei_message_type(msg)) {
             cea708_parse_h264(sei_message_data(msg), sei_message_size(msg), &cea708);
-            status = libcaption_status_update(status, cea708_to_caption_frame(frame, &cea708));
+            status = libcaption_status_update(status, cea708_to_caption_frame(frame, &cea708, dtvcc, dtvcc_pos));
         }
     }
 
@@ -668,11 +668,11 @@ again:
 }
 
 // Removes items from front
-size_t mpeg_bitstream_flush(mpeg_bitstream_t* packet, caption_frame_t* frame)
+size_t mpeg_bitstream_flush(mpeg_bitstream_t* packet, caption_frame_t* frame, dtvcc_packet_t* dtvcc, uint8_t *dtvcc_pos)
 {
     if (packet->latent) {
         cea708_t* cea708 = _mpeg_bitstream_cea708_front(packet);
-        packet->status = libcaption_status_update(LIBCAPTION_OK, cea708_to_caption_frame(frame, cea708));
+        packet->status = libcaption_status_update(LIBCAPTION_OK, cea708_to_caption_frame(frame, cea708, dtvcc, dtvcc_pos));
         packet->front = (packet->front + 1) % MAX_REFRENCE_FRAMES;
         --packet->latent;
     }
@@ -680,16 +680,16 @@ size_t mpeg_bitstream_flush(mpeg_bitstream_t* packet, caption_frame_t* frame)
     return packet->latent;
 }
 
-void _mpeg_bitstream_cea708_sort_flush(mpeg_bitstream_t* packet, caption_frame_t* frame, double dts)
+void _mpeg_bitstream_cea708_sort_flush(mpeg_bitstream_t* packet, caption_frame_t* frame, double dts, dtvcc_packet_t* dtvcc, uint8_t *dtvcc_pos)
 {
     _mpeg_bitstream_cea708_sort(packet);
     // Loop will terminate on LIBCAPTION_READY
     while (packet->latent && packet->status == LIBCAPTION_OK && _mpeg_bitstream_cea708_front(packet)->timestamp < dts) {
-        mpeg_bitstream_flush(packet, frame);
+        mpeg_bitstream_flush(packet, frame, dtvcc, dtvcc_pos);
     }
 }
 
-size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, const uint8_t* data, size_t size, unsigned stream_type, double dts, double cts)
+size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, const uint8_t* data, size_t size, unsigned stream_type, double dts, double cts, dtvcc_packet_t* dtvcc, uint8_t *dtvcc_pos)
 {
     if (MAX_NALU_SIZE <= packet->size) {
         packet->status = LIBCAPTION_ERROR;
@@ -717,7 +717,7 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
             if (STREAM_TYPE_H262 == stream_type && scpos > header_size) {
                 cea708_t* cea708 = _mpeg_bitstream_cea708_emplace_back(packet, dts + cts);
                 packet->status = libcaption_status_update(packet->status, cea708_parse_h262(&packet->data[header_size], scpos - header_size, cea708));
-                _mpeg_bitstream_cea708_sort_flush(packet, frame, dts);
+                _mpeg_bitstream_cea708_sort_flush(packet, frame, dts, dtvcc, dtvcc_pos);
             }
             break;
         case H264_SEI_PACKET:
@@ -729,7 +729,7 @@ size_t mpeg_bitstream_parse(mpeg_bitstream_t* packet, caption_frame_t* frame, co
                     if (sei_type_user_data_registered_itu_t_t35 == sei_message_type(msg)) {
                         cea708_t* cea708 = _mpeg_bitstream_cea708_emplace_back(packet, dts + cts);
                         packet->status = libcaption_status_update(packet->status, cea708_parse_h264(sei_message_data(msg), sei_message_size(msg), cea708));
-                        _mpeg_bitstream_cea708_sort_flush(packet, frame, dts);
+                        _mpeg_bitstream_cea708_sort_flush(packet, frame, dts, dtvcc, dtvcc_pos);
                     }
                 }
                 sei_free(&sei);

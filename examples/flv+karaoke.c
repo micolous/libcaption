@@ -43,6 +43,7 @@
 #include "flv.h"
 #include "mpeg.h"
 #include "srt.h"
+#include "dtvcc.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -232,6 +233,21 @@ nothing:
     return 0;
 }
 
+void cmdlist_from_streaming_karaoke_dtvcc(cc_data_cmdlist_t* cmdlist, const utf8_char_t* data, uint8_t* column, uint8_t* sequence) {
+    dtvcc_packet_t dtvcc;
+    dtvcc_service_block_t service;
+    memset(&dtvcc, 0, sizeof(dtvcc_packet_t));
+    memset(&service, 0, sizeof(dtvcc_service_block_t));
+
+    dtvcc_from_streaming_karaoke(&service, data, column);
+    dtvcc_write_service_block(&dtvcc, &service);
+    dtvcc_finish_service_blocks(&dtvcc, *sequence);
+    *sequence = (*sequence + 1) % 4;
+
+    dtvcc_packet_to_cmdlist(&dtvcc, cmdlist);
+    
+}
+
 int main(int argc, char** argv)
 {
     flvtag_t tag;
@@ -244,6 +260,7 @@ int main(int argc, char** argv)
     uint8_t did_something = 0;
     timecode_ring_t ring;
     uint8_t column = 0;
+    uint8_t sequence = 0;
 
     if (argc != 4) {
         fprintf(stderr, "Usage: %s <input_flv> <input_karaoke> <output_flv>\n", argv[0]);
@@ -287,7 +304,8 @@ int main(int argc, char** argv)
             offset = timestamp;
             next_cue = cur_srt->cue_head;
             next_cmdlist_pos = 0;
-            cmdlist_from_streaming_karaoke(&next_cmdlist, srt_cue_data(next_cue), &column);
+            cmdlist_from_streaming_karaoke_dtvcc(&next_cmdlist, srt_cue_data(next_cue), &column, &sequence);
+            // cmdlist_from_streaming_karaoke(&next_cmdlist, srt_cue_data(next_cue), &column);
         }
 
         if (flvtag_avcpackettype_nalu == flvtag_avcpackettype(&tag) && flvtag_type_video == flvtag_type(&tag)) {
@@ -323,7 +341,8 @@ int main(int argc, char** argv)
                             next_cmdlist_pos = 0;
                             if (next_cue) {
                                 fprintf(stderr, "LINE!\n");
-                                cmdlist_from_streaming_karaoke(&next_cmdlist, srt_cue_data(next_cue), &column);
+                                cmdlist_from_streaming_karaoke_dtvcc(&next_cmdlist, srt_cue_data(next_cue), &column, &sequence);
+                                //cmdlist_from_streaming_karaoke(&next_cmdlist, srt_cue_data(next_cue), &column);
                             }
                         }
                     }

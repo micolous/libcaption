@@ -34,6 +34,13 @@ int main(int argc, char** argv)
     int has_audio, has_video;
     caption_frame_t frame;
     mpeg_bitstream_t mpegbs;
+    dtvcc_packet_t dtvcc;
+    uint8_t dtvcc_pos = 0;
+
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s [input_flv]\n", argv[0]);
+        return 1;
+    }
     const char* path = argv[1];
 
     flvtag_init(&tag);
@@ -51,13 +58,19 @@ int main(int argc, char** argv)
 
     while (flv_read_tag(flv, &tag)) {
         if (flvtag_avcpackettype_nalu == flvtag_avcpackettype(&tag)) {
-            ssize_t size = flvtag_payload_size(&tag);
+            size_t size = flvtag_payload_size(&tag);
             uint8_t* data = flvtag_payload_data(&tag);
 
             while (0 < size) {
                 size_t nalu_size = (data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3];
-                mpeg_bitstream_parse(&mpegbs, &frame, (const uint8_t*)"\0\0\1", 3, STREAM_TYPE_H264, flvtag_dts_seconds(&tag), flvtag_cts_seconds(&tag));
-                mpeg_bitstream_parse(&mpegbs, &frame, &data[LENGTH_SIZE], nalu_size, STREAM_TYPE_H264, flvtag_dts_seconds(&tag), flvtag_cts_seconds(&tag));
+                mpeg_bitstream_parse(
+                    &mpegbs, &frame, (const uint8_t*)"\0\0\1", 3, STREAM_TYPE_H264,
+                    flvtag_dts_seconds(&tag), flvtag_cts_seconds(&tag),
+                    &dtvcc, &dtvcc_pos);
+                mpeg_bitstream_parse(
+                    &mpegbs, &frame, &data[LENGTH_SIZE], nalu_size, STREAM_TYPE_H264,
+                    flvtag_dts_seconds(&tag), flvtag_cts_seconds(&tag),
+                    &dtvcc, &dtvcc_pos);
                 data += nalu_size + LENGTH_SIZE, size -= nalu_size + LENGTH_SIZE;
                 switch (mpeg_bitstream_status(&mpegbs)) {
                 default:

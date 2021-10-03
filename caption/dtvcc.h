@@ -7,6 +7,8 @@ extern "C" {
 
 #include "caption.h"
 #include "cea708_types.h"
+#include "utf8.h"
+#include "cmdlist.h"
 
 #include <stdint.h>
 
@@ -47,7 +49,9 @@ libcaption_stauts_t dtvcc_write_service_block(dtvcc_packet_t* dtvcc, const dtvcc
  */
 libcaption_stauts_t dtvcc_finish_service_blocks(dtvcc_packet_t* dtvcc, uint8_t sequence_number);
 
-// static inline size_t dvtvcc_packet_size_bytes(const struct dtvcc_packet_t *dvtcc) { return dvtcc->packet_size*2-1;}
+libcaption_stauts_t dtvcc_from_streaming_karaoke(dtvcc_service_block_t* service_block, const utf8_char_t* data, uint8_t* column);
+
+libcaption_stauts_t dtvcc_packet_to_cmdlist(const dtvcc_packet_t *dtvcc, cc_data_cmdlist_t *cmdlist);
 
 ////////////////////////////////////////////////////////////////////////////////
 #ifdef __cplusplus
