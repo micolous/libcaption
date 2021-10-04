@@ -166,7 +166,9 @@ typedef enum {
 } cea708_control_t;
 
 typedef enum {
+    // Don't change the window style.
     cea708_predefined_window_style_none = 0,
+    // Default style, 608-style pop-up captions.
     cea708_predefined_window_style_608_pop_up = 1,
     cea708_predefined_window_style_transparent_pop_up = 2,
     cea708_predefined_window_style_608_pop_up_centered = 3,
@@ -177,6 +179,7 @@ typedef enum {
 } cea708_predefined_window_style_t;
 
 typedef enum {
+    // Don't change the pen style.
     cea708_predefined_pen_style_none = 0,
     cea708_predefined_pen_style_default = 1,
     cea708_predefined_pen_style_mono_serif = 2,
@@ -211,10 +214,12 @@ typedef struct {
 
     unsigned int anchor_horizontal : 8;
 
+    // Window height in rows, minus 1. (ie: 0 = 1 row)
     unsigned int row_count : 4;
     // cea708_anchor_point_t
     unsigned int anchor_point : 4;
 
+    // Window width in columns, minus 1. (ie: 0 = 1 column)
     unsigned int column_count : 6;
     unsigned int _padding2 : 2;
 

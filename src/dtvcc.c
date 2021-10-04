@@ -297,14 +297,18 @@ const cea708_define_window_t karaoke_win = {
     .column_lock = 1,
     .row_lock = 1,
     .visible = 1,
-    .anchor_vertical = 99,
+    .anchor_vertical = 0,
     .relative_positioning = 1,
-    .anchor_horizontal = 49,
-    .row_count = 2,
+    .anchor_horizontal = 0,
+    .row_count = 2 - 1,
     .anchor_point = cea708_anchor_point_bottom,
-    .column_count = SCREEN_COLS,
+    .column_count = SCREEN_COLS - 1,
     .predefined_pen_style = cea708_predefined_pen_style_proportional_sans,
     .predefined_window_style = cea708_predefined_window_style_608_roll_up,
+    // Doing bad things to VLC
+    // https://code.videolan.org/videolan/vlc/-/issues/26160
+    // .predefined_pen_style = 7,
+    // .predefined_window_style = 7,
 };
 
 libcaption_stauts_t dtvcc_from_streaming_karaoke(dtvcc_service_block_t* service_block, const utf8_char_t* data, uint8_t* column) {
@@ -322,7 +326,7 @@ libcaption_stauts_t dtvcc_from_streaming_karaoke(dtvcc_service_block_t* service_
         // 8.11.1 Proper Order of Data, Simple Roll-up Style Captions
         dtvcc_delete_all_windows(service_block);
         dtvcc_define_window(service_block, 0, &karaoke_win);
-        dtvcc_set_pen_location(service_block, 0, 0);
+        dtvcc_set_pen_location(service_block, 1, 0);
         dtvcc_push_command(service_block, cea708_control_carriage_return);
     }
 
@@ -349,7 +353,7 @@ libcaption_stauts_t dtvcc_from_streaming_karaoke(dtvcc_service_block_t* service_
             *column = 0;
             dtvcc_delete_windows(service_block, 0xfe);
             dtvcc_define_window(service_block, 0, &karaoke_win);
-            dtvcc_set_pen_location(service_block, 0, 0);
+            dtvcc_set_pen_location(service_block, 1, 0);
             dtvcc_push_command(service_block, cea708_control_carriage_return);
         }
 
